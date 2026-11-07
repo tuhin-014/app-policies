@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CleanVerify — Check a timestamp</title>
+<style>
+  :root{
+    --teal:#0D9488; --slate:#0F172A; --muted:#64748B; --line:#E2E8F0;
+    --ok:#15803D; --okbg:#F0FDF4; --warn:#B45309; --warnbg:#FFFBEB;
+    --bad:#B91C1C; --badbg:#FEF2F2; --card:#fff; --bg:#F8FAFC;
+  }
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+       max-width:780px;margin:0 auto;padding:24px 20px 72px;color:var(--slate);
+       line-height:1.6;background:var(--bg)}
+  h1{color:var(--teal);font-size:1.7rem;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 28px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+        padding:20px;margin-bottom:18px}
+  .drop{border:2px dashed #CBD5E1;border-radius:12px;padding:22px;text-align:center;
+        cursor:pointer;transition:.15s;background:#fff}
+  .drop:hover,.drop.over{border-color:var(--teal);background:#F0FDFA}
+  .drop strong{display:block;color:var(--slate)}
+  .drop span{color:var(--muted);font-size:.9rem}
+  .file{margin-top:10px;font-size:.88rem;color:var(--teal);word-break:break-all}
+  .grid{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+  @media(max-width:620px){.grid{grid-template-columns:1fr}}
+  button{background:var(--teal);color:#fff;border:0;border-radius:10px;
+         padding:13px 20px;font-size:1rem;font-weight:600;cursor:pointer;width:100%}
+  button:disabled{background:#CBD5E1;cursor:not-allowed}
+  .verdict{border-radius:12px;padding:18px;margin-top:4px;border:1px solid}
+  .verdict h2{margin:0 0 6px;font-size:1.15rem}
+  .v-ok{background:var(--okbg);border-color:#BBF7D0;color:var(--ok)}
+  .v-bad{background:var(--badbg);border-color:#FECACA;color:var(--bad)}
+  .v-warn{background:var(--warnbg);border-color:#FDE68A;color:var(--warn)}
+  dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:16px 0 0;font-size:.92rem}
+  dt{color:var(--muted)} dd{margin:0}
+  dd.mono{font-family:ui-monospace,Menlo,monospace;word-break:break-all;font-size:.9em}
+  .note{font-size:.9rem;color:var(--muted)}
+  code{background:#F1F5F9;padding:2px 6px;border-radius:5px;
+       font-family:ui-monospace,Menlo,monospace;font-size:.86em}
+  pre{background:#F1F5F9;padding:12px;border-radius:8px;overflow-x:auto;font-size:.85rem}
+  h2.sec{font-size:1.05rem;margin:26px 0 10px}
+  footer{margin-top:34px;padding-top:18px;border-top:1px solid var(--line);
+         font-size:.86rem;color:var(--muted)}
+  a{color:var(--teal)}
+</style>
+</head>
+<body>
+
+<h1>Check a timestamp</h1>
+<p class="sub">Confirm when a CleanVerify photo existed — without CleanVerify, and without sending anything to anyone.</p>
+
+<div class="card">
+  <div class="grid">
+    <div>
+      <div class="drop" id="dropPhoto">
+        <strong>1 · The photo</strong>
+        <span>Click or drop the image file</span>
+        <div class="file" id="photoName"></div>
+      </div>
+      <input type="file" id="photoInput" hidden accept="image/*">
+    </div>
+    <div>
+      <div class="drop" id="dropToken">
+        <strong>2 · The timestamp</strong>
+        <span>Click or drop the <code>.tsr</code> file</span>
+        <div class="file" id="tokenName"></div>
+      </div>
+      <input type="file" id="tokenInput" hidden accept=".tsr,application/timestamp-reply">
+    </div>
+  </div>
+  <p style="margin:16px 0 12px" class="note">
+    Both files stay in this browser. Nothing is uploaded, and this page has no
+    server to upload them to.
+  </p>
+  <button id="go" disabled>Check them</button>
+</div>
+
+<div id="result"></div>
+
+<h2 class="sec">Where these files come from</h2>
+<p class="note">
+  In CleanVerify, open <strong>More → Export proof archive</strong>. The archive
+  contains <code>Photos/</code> and <code>Timestamps/</code>. A timestamp file is
+  named after the room and whether it is the before or after photo.
+</p>
+
+<h2 class="sec">What this page can and cannot tell you</h2>
+<p class="note">
+  A timestamp token is a receipt from an independent timestamp authority saying a
+  particular fingerprint was shown to it at a particular moment. This page reads
+  that time out of the token, recomputes the photo's fingerprint, and tells you
+  whether they match.
+</p>
+<p class="note">
+  <strong>It does not verify the authority's signature.</strong> That needs the
+  authority's certificate chain and is beyond what a page like this should claim.
+  To check the signature itself, use OpenSSL on your own machine:
+</p>
+<pre>openssl ts -reply -in timestamp.tsr -text
+shasum -a 256 photo.jpg</pre>
+<p class="note">
+  A timestamp shows one thing: that this exact file existed by that moment. It does
+  not show who took the photo, where it was taken, or that any work was carried out.
+  The photo itself was never uploaded to the authority — only its fingerprint.
+</p>
+
+<footer>
+  CleanVerify by Vertex Lab Solutions ·
+  <a href="privacy-policy.html">Privacy Policy</a><br>
+  Timestamps follow RFC 3161, a public standard. These files can be checked with
+  standard tools by anyone, for as long as the files exist — this page is a
+  convenience, not a dependency.
+</footer>
+
+<script type="module">
+// ---- Minimal RFC 3161 reader -------------------------------------------------
+// Answers the only two questions a recipient has: what time does this token
+// assert, and is it about THIS file? It deliberately does not verify the TSA
+// signature — claiming that here would be exactly the kind of overclaim this
+// product exists to avoid.
+
+function readTLV(b, p) {
+  const tag = b[p]; let i = p + 1;
+  let len = b[i++];
+  if (len & 0x80) { const n = len & 0x7f; len = 0; for (let k = 0; k < n; k++) len = (len << 8) | b[i++]; }
+  return { tag, start: i, end: i + len, next: i + len };
+}
+function* walk(b, start, end, depth) {
+  let p = start;
+  while (p < end) {
+    let t; try { t = readTLV(b, p); } catch { return; }
+    if (t.end > end) return;
+    yield { ...t, depth };
+    if ((t.tag & 0x20) && depth < 12) yield* walk(b, t.start, t.end, depth + 1);
+    p = t.next;
+  }
+}
+const OID_TSTINFO = [0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x09,0x10,0x01,0x04];
+const eq = (b,s,a) => a.every((v,i) => b[s+i] === v);
+const hex = (b,s,e) => [...b.slice(s,e)].map(x => x.toString(16).padStart(2,'0')).join('');
+function oidToString(b,s,e){
+  const out=[]; const v=b[s]; out.push(Math.floor(v/40), v%40); let acc=0;
+  for(let i=s+1;i<e;i++){ acc=(acc<<7)|(b[i]&0x7f); if(!(b[i]&0x80)){out.push(acc);acc=0;} }
+  return out.join('.');
+}
+function parseGeneralizedTime(s){
+  const m=/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\.\d+)?Z$/.exec(s);
+  return m ? new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6])) : null;
+}
+function parseToken(b){
+  const res={granted:null,genTime:null,hashHex:null,hashAlg:null,serial:null,policy:null};
+  const top=readTLV(b,0);
+  const first=readTLV(b,top.start);
+  if((first.tag&0x1f)===0x10){ const st=readTLV(b,first.start);
+    if(st.tag===0x02) res.granted=(b[st.start]===0||b[st.start]===1); }
+  let ts=-1,te=-1;
+  for(const n of walk(b,top.start,top.end,0)){
+    if(n.tag===0x06 && (n.end-n.start)===OID_TSTINFO.length && eq(b,n.start,OID_TSTINFO)){
+      let p=n.next;
+      for(let hop=0;hop<3&&p<top.end;hop++){
+        const t=readTLV(b,p);
+        if(t.tag===0x04){ ts=t.start; te=t.end; break; }
+        p=t.start;
+      }
+      if(ts>=0) break;
+    }
+  }
+  if(ts<0) return res;
+  const seq=readTLV(b,ts); let p=seq.start;
+  p=readTLV(b,p).next;                                   // version
+  const policy=readTLV(b,p); p=policy.next;
+  if(policy.tag===0x06) res.policy=oidToString(b,policy.start,policy.end);
+  const imp=readTLV(b,p); p=imp.next;
+  if((imp.tag&0x1f)===0x10){
+    const alg=readTLV(b,imp.start); const algOid=readTLV(b,alg.start);
+    if(algOid.tag===0x06){
+      const o=oidToString(b,algOid.start,algOid.end);
+      res.hashAlg={'2.16.840.1.101.3.4.2.1':'SHA-256','2.16.840.1.101.3.4.2.2':'SHA-384',
+                   '2.16.840.1.101.3.4.2.3':'SHA-512','1.3.14.3.2.26':'SHA-1'}[o]||o;
+    }
+    const h=readTLV(b,alg.next);
+    if(h.tag===0x04) res.hashHex=hex(b,h.start,h.end);
+  }
+  const serial=readTLV(b,p); p=serial.next;
+  if(serial.tag===0x02) res.serial=hex(b,serial.start,serial.end).replace(/^0+/,'');
+  const gt=readTLV(b,p);
+  if(gt.tag===0x18) res.genTime=parseGeneralizedTime(new TextDecoder().decode(b.slice(gt.start,gt.end)));
+  return res;
+}
+
+// ---- Page --------------------------------------------------------------------
+const state = { photo:null, token:null };
+
+function wire(dropId, inputId, nameId, key){
+  const drop=document.getElementById(dropId), input=document.getElementById(inputId),
+        name=document.getElementById(nameId);
+  drop.addEventListener('click',()=>input.click());
+  drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('over');});
+  drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
+  drop.addEventListener('drop',e=>{
+    e.preventDefault(); drop.classList.remove('over');
+    if(e.dataTransfer.files[0]) take(e.dataTransfer.files[0]);
+  });
+  input.addEventListener('change',()=>{ if(input.files[0]) take(input.files[0]); });
+  function take(f){ state[key]=f; name.textContent=f.name; refresh(); }
+}
+function refresh(){ document.getElementById('go').disabled = !(state.photo && state.token); }
+wire('dropPhoto','photoInput','photoName','photo');
+wire('dropToken','tokenInput','tokenName','token');
+
+const fmt = d => d.toLocaleString(undefined,{dateStyle:'full',timeStyle:'long'});
+
+document.getElementById('go').addEventListener('click', async () => {
+  const out = document.getElementById('result');
+  out.innerHTML = '<div class="card"><p class="note">Checking…</p></div>';
+  try {
+    const [photoBuf, tokenBuf] = await Promise.all([
+      state.photo.arrayBuffer(), state.token.arrayBuffer()
+    ]);
+    const digest = await crypto.subtle.digest('SHA-256', photoBuf);
+    const fileHash = [...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
+    const t = parseToken(new Uint8Array(tokenBuf));
+
+    if (!t.hashHex || !t.genTime) {
+      out.innerHTML = card('v-bad','Not a timestamp file',
+        `<p>This file could not be read as an RFC 3161 timestamp. Check that it is a
+         <code>.tsr</code> from the <code>Timestamps/</code> folder of a CleanVerify
+         proof archive.</p>`);
+      return;
+    }
+    const match = t.hashHex.toLowerCase() === fileHash.toLowerCase();
+    const algWarn = t.hashAlg && t.hashAlg !== 'SHA-256'
+      ? `<p class="note">This token uses ${t.hashAlg}; this page compares SHA-256,
+         so the fingerprints will not match even for the right file. Use OpenSSL.</p>` : '';
+
+    const rows = `<dl>
+      <dt>Timestamp says</dt><dd>${fmt(t.genTime)}</dd>
+      <dt>Token fingerprint</dt><dd class="mono">${t.hashHex}</dd>
+      <dt>This file</dt><dd class="mono">${fileHash}</dd>
+      <dt>Algorithm</dt><dd>${t.hashAlg||'unknown'}</dd>
+      ${t.serial?`<dt>Serial</dt><dd class="mono">${t.serial}</dd>`:''}
+      ${t.policy?`<dt>Policy OID</dt><dd class="mono">${t.policy}</dd>`:''}
+      <dt>Status</dt><dd>${t.granted===false?'not granted':'granted'}</dd>
+    </dl>`;
+
+    if (match) {
+      out.innerHTML = card('v-ok','The timestamp matches this photo',
+        `<p><strong>${state.photo.name}</strong> existed no later than
+          <strong>${fmt(t.genTime)}</strong>.</p>
+         <p class="note">An independent timestamp authority was shown this file's
+          fingerprint at that moment. It does not show who took the photo, where,
+          or that any work was done.</p>${rows}`);
+    } else {
+      out.innerHTML = card('v-bad','These do not go together',
+        `<p>The fingerprint in the timestamp is not the fingerprint of this file,
+          so this token is about a different photo — or the photo has been edited
+          or re-saved since it was stamped.</p>${algWarn}${rows}`);
+    }
+  } catch (err) {
+    out.innerHTML = card('v-warn','Could not finish the check',
+      `<p>${String(err && err.message || err)}</p>
+       <p class="note">If this keeps happening, use the OpenSSL commands below —
+        they do not depend on this page.</p>`);
+  }
+});
+
+function card(cls,title,body){
+  return `<div class="card"><div class="verdict ${cls}"><h2>${title}</h2></div>
+          <div style="margin-top:14px">${body}</div></div>`;
+}
+</script>
+</body>
+</html>
